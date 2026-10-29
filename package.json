@@ -1,0 +1,27 @@
+{
+  "name": "adaptive-online-quiz-system",
+  "version": "1.0.0",
+  "description": "Adaptive Online Quiz and Performance Analytics System for Web Technology (23CS2048)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js"
+  },
+  "keywords": [
+    "nodejs",
+    "express",
+    "mongodb",
+    "adaptive-quiz",
+    "analytics",
+    "bootstrap5",
+    "web-technology"
+  ],
+  "author": "Student",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "mongoose": "^9.3.4"
+  }
+}

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adaptive Online Quiz & Performance Analytics System</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="#">
+        🎓 Adaptive Quiz & Analytics
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMenu">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navMenu">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link active" id="tab-quiz-link" href="#" onclick="showTab('quiz')">Take Quiz</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="tab-analytics-link" href="#" onclick="showTab('analytics')">Student Analytics</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="tab-leaderboard-link" href="#" onclick="showTab('leaderboard')">Leaderboard</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="tab-questions-link" href="#" onclick="showTab('questions')">Question Bank</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Header Banner -->
+  <div class="bg-primary text-white py-3 mb-4 shadow-sm">
+    <div class="container text-center">
+      <h3 class="mb-1">Adaptive Online Quiz and Performance Analytics System</h3>
+      <p class="mb-0 small">Course: 23CS2048 - Web Technology | Full Stack Node.js & MongoDB Implementation</p>
+    </div>
+  </div>
+
+  <div class="container mb-5">
+
+    <!-- ========================================== -->
+    <!-- TAB 1: TAKE ADAPTIVE QUIZ                  -->
+    <!-- ========================================== -->
+    <div id="tab-quiz">
+      
+      <!-- Step 1: Student Registration Form -->
+      <div id="registration-card" class="card mx-auto" style="max-width: 600px;">
+        <div class="card-header bg-white border-bottom">
+          <h5 class="card-title mb-0">Student Registration</h5>
+        </div>
+        <div class="card-body">
+          <div id="reg-error" class="alert alert-danger d-none" role="alert"></div>
+          
+          <form id="student-form" onsubmit="handleRegistration(event)">
+            <div class="mb-3">
+              <label for="student-name" class="form-label">Full Name <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="student-name" placeholder="e.g. Rahul Sharma" required>
+            </div>
+            <div class="mb-3">
+              <label for="student-regno" class="form-label">Register Number <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="student-regno" placeholder="e.g. URK23CS1001" required>
+            </div>
+            <div class="mb-3">
+              <label for="student-email" class="form-label">Email Address <span class="text-danger">*</span></label>
+              <input type="email" class="form-control" id="student-email" placeholder="e.g. rahul@karunya.edu" required>
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">Start Adaptive Quiz</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Step 2: Adaptive Quiz Screen -->
+      <div id="quiz-card" class="card mx-auto d-none" style="max-width: 750px;">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <div>
+            <span class="fw-bold" id="quiz-progress">Question 1 of 5</span>
+            <span class="ms-2 badge" id="difficulty-badge">Medium</span>
+          </div>
+          <div>
+            <span class="text-muted small">Score: </span>
+            <span class="fw-bold text-success" id="current-score">0 pts</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <!-- Adaptive Notification Banner -->
+          <div id="adaptive-alert" class="alert alert-info py-2 small d-none" role="alert"></div>
+
+          <!-- Question Text -->
+          <h5 class="card-title mb-4" id="question-text">Loading question...</h5>
+
+          <!-- 4 Options Form -->
+          <form id="options-form">
+            <label class="quiz-option" id="label-opt-0">
+              <input type="radio" name="quizOption" value="0"> <span id="opt-0-text">Option 1</span>
+            </label>
+            <label class="quiz-option" id="label-opt-1">
+              <input type="radio" name="quizOption" value="1"> <span id="opt-1-text">Option 2</span>
+            </label>
+            <label class="quiz-option" id="label-opt-2">
+              <input type="radio" name="quizOption" value="2"> <span id="opt-2-text">Option 3</span>
+            </label>
+            <label class="quiz-option" id="label-opt-3">
+              <input type="radio" name="quizOption" value="3"> <span id="opt-3-text">Option 4</span>
+            </label>
+          </form>
+
+          <div id="quiz-error" class="alert alert-warning py-1 small d-none mt-2"></div>
+        </div>
+
+        <div class="card-footer bg-white text-end">
+          <button type="button" class="btn btn-primary" id="btn-submit-answer" onclick="submitAnswer()">
+            Submit & Next Question &rarr;
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: Quiz Result & Analytics -->
+      <div id="result-card" class="card mx-auto d-none" style="max-width: 800px;">
+        <div class="card-header bg-success text-white text-center py-3">
+          <h4 class="mb-0">Quiz Completed!</h4>
+        </div>
+        <div class="card-body">
+          <div class="row text-center mb-4">
+            <div class="col-md-3 mb-2">
+              <div class="p-3 border rounded bg-light">
+                <small class="text-muted">Total Score</small>
+                <h3 class="text-primary mb-0" id="res-score">0</h3>
+              </div>
+            </div>
+            <div class="col-md-3 mb-2">
+              <div class="p-3 border rounded bg-light">
+                <small class="text-muted">Accuracy</small>
+                <h3 class="text-success mb-0" id="res-accuracy">0%</h3>
+              </div>
+            </div>
+            <div class="col-md-3 mb-2">
+              <div class="p-3 border rounded bg-light">
+                <small class="text-muted">Correct / Total</small>
+                <h3 class="text-dark mb-0" id="res-correct">0 / 5</h3>
+              </div>
+            </div>
+            <div class="col-md-3 mb-2">
+              <div class="p-3 border rounded bg-light">
+                <small class="text-muted">Register No</small>
+                <h5 class="text-secondary mt-1 mb-0" id="res-regno">-</h5>
+              </div>
+            </div>
+          </div>
+
+          <!-- Question Review Table -->
+          <h6 class="fw-bold mb-2">Questions Review:</h6>
+          <div class="table-responsive">
+            <table class="table table-bordered table-sm align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>Question</th>
+                  <th>Difficulty</th>
+                  <th>Your Answer</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody id="result-table-body">
+                <!-- Injected dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="text-center mt-4">
+            <button class="btn btn-outline-primary me-2" onclick="restartQuiz()">Take Another Quiz</button>
+            <button class="btn btn-success" onclick="viewMyAnalyticsFromQuiz()">View My Analytics</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: STUDENT ANALYTICS                   -->
+    <!-- ========================================== -->
+    <div id="tab-analytics" class="d-none">
+      <div class="card mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Lookup Student Performance Analytics</h5>
+          <div class="row g-2 align-items-center">
+            <div class="col-md-8">
+              <input type="email" id="analytics-search-email" class="form-control" placeholder="Enter student email (e.g. rahul@karunya.edu)">
+            </div>
+            <div class="col-md-4">
+              <button class="btn btn-primary w-100" onclick="loadStudentAnalytics()">View Analytics</button>
+            </div>
+          </div>
+          <div id="analytics-error" class="alert alert-warning py-2 small d-none mt-3"></div>
+        </div>
+      </div>
+
+      <div id="analytics-content" class="d-none">
+        <!-- Stats Summary -->
+        <div class="row mb-4">
+          <div class="col-md-3 mb-2">
+            <div class="stat-box">
+              <p>Total Attempts</p>
+              <h3 id="stat-attempts">0</h3>
+            </div>
+          </div>
+          <div class="col-md-3 mb-2">
+            <div class="stat-box">
+              <p>Highest Score</p>
+              <h3 id="stat-best">0</h3>
+            </div>
+          </div>
+          <div class="col-md-3 mb-2">
+            <div class="stat-box">
+              <p>Average Accuracy</p>
+              <h3 id="stat-accuracy">0%</h3>
+            </div>
+          </div>
+          <div class="col-md-3 mb-2">
+            <div class="stat-box">
+              <p>Average Score</p>
+              <h3 id="stat-avg-score">0</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="card mb-4">
+          <div class="card-header bg-white">
+            <h6 class="mb-0 fw-bold">Performance Over Attempts</h6>
+          </div>
+          <div class="card-body">
+            <canvas id="performanceChart" height="90"></canvas>
+          </div>
+        </div>
+
+        <!-- Attempt History Table -->
+        <div class="card">
+          <div class="card-header bg-white">
+            <h6 class="mb-0 fw-bold">Past Quiz Attempts</h6>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-striped table-hover mb-0 align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th>Date</th>
+                    <th>Score</th>
+                    <th>Correct</th>
+                    <th>Accuracy</th>
+                    <th>Easy Attempted</th>
+                    <th>Medium Attempted</th>
+                    <th>Hard Attempted</th>
+                  </tr>
+                </thead>
+                <tbody id="analytics-history-body">
+                  <!-- Injected dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 3: LEADERBOARD                         -->
+    <!-- ========================================== -->
+    <div id="tab-leaderboard" class="d-none">
+      <div class="card">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0 fw-bold">🏆 Top Performers Leaderboard</h5>
+          <button class="btn btn-sm btn-outline-secondary" onclick="loadLeaderboard()">Refresh</button>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 80px;">Rank</th>
+                  <th>Student Name</th>
+                  <th>Register Number</th>
+                  <th>Score</th>
+                  <th>Accuracy</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboard-body">
+                <tr><td colspan="6" class="text-center py-3">Loading leaderboard...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 4: QUESTION BANK MANAGEMENT            -->
+    <!-- ========================================== -->
+    <div id="tab-questions" class="d-none">
+      <div class="row">
+        <!-- Add Question Form -->
+        <div class="col-lg-5 mb-4">
+          <div class="card">
+            <div class="card-header bg-white">
+              <h6 class="mb-0 fw-bold">Add New Question</h6>
+            </div>
+            <div class="card-body">
+              <div id="add-q-msg" class="alert d-none py-2 small"></div>
+              <form id="add-question-form" onsubmit="handleAddQuestion(event)">
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold">Question Text *</label>
+                  <textarea class="form-control form-control-sm" id="new-q-text" rows="2" required placeholder="Enter question..."></textarea>
+                </div>
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small fw-semibold">Difficulty *</label>
+                    <select class="form-select form-select-sm" id="new-q-diff" required>
+                      <option value="Easy">Easy</option>
+                      <option value="Medium" selected>Medium</option>
+                      <option value="Hard">Hard</option>
+                    </select>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small fw-semibold">Category</label>
+                    <input type="text" class="form-control form-control-sm" id="new-q-cat" value="Web Technology">
+                  </div>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold">Option 1 *</label>
+                  <input type="text" class="form-control form-control-sm" id="new-opt-0" required placeholder="Option 1">
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold">Option 2 *</label>
+                  <input type="text" class="form-control form-control-sm" id="new-opt-1" required placeholder="Option 2">
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold">Option 3 *</label>
+                  <input type="text" class="form-control form-control-sm" id="new-opt-2" required placeholder="Option 3">
+                </div>
+                <div class="mb-2">
+                  <label class="form-label small fw-semibold">Option 4 *</label>
+                  <input type="text" class="form-control form-control-sm" id="new-opt-3" required placeholder="Option 4">
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label small fw-semibold">Correct Option *</label>
+                  <select class="form-select form-select-sm" id="new-q-correct" required>
+                    <option value="0">Option 1</option>
+                    <option value="1">Option 2</option>
+                    <option value="2">Option 3</option>
+                    <option value="3">Option 4</option>
+                  </select>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-sm w-100">Save Question to MongoDB</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Questions List Table -->
+        <div class="col-lg-7">
+          <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <h6 class="mb-0 fw-bold">Existing Questions (<span id="q-count">0</span>)</h6>
+              <button class="btn btn-sm btn-outline-secondary" onclick="loadQuestionsList()">Refresh</button>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th>Question</th>
+                      <th>Difficulty</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="questions-list-body">
+                    <tr><td colspan="3" class="text-center py-3">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bootstrap 5 JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Main Script -->
+  <script src="js/script.js"></script>
+</body>
+</html>

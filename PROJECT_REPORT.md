@@ -188,3 +188,4 @@ The **Adaptive Online Quiz and Performance Analytics System** successfully fulfi
 - Implementation of JWT (JSON Web Tokens) authentication for protected administrative views.
 - Automatic timer countdown per question with timed auto-submission.
 - Exporting student performance transcripts as downloadable PDF reports.
+

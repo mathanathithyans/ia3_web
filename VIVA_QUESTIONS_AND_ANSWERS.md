@@ -95,3 +95,4 @@ Chart.js is an open-source HTML5 canvas-based JavaScript library for data visual
 - **400 Bad Request:** Validation error (e.g. invalid email or missing option).
 - **404 Not Found:** Resource not found (e.g. no questions available).
 - **500 Internal Server Error:** Unexpected server-side or database exception.
+

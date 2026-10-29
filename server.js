@@ -18,10 +18,41 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Connect to MongoDB
-mongoose.connect(MONGO_URI)
-  .then(() => console.log('Connected to MongoDB: ' + MONGO_URI))
-  .catch(err => console.error('MongoDB Connection Error:', err));
+// Cached MongoDB Connection for Serverless (Vercel) & Local
+let isConnected = false;
+async function connectDB() {
+  if (isConnected || mongoose.connection.readyState === 1) {
+    isConnected = true;
+    return;
+  }
+  try {
+    const db = await mongoose.connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 8000,
+    });
+    isConnected = db.connections[0].readyState === 1;
+    console.log('Connected to MongoDB Atlas');
+  } catch (err) {
+    console.error('MongoDB Connection Error:', err.message);
+    throw new Error('Database connection failed. Please ensure 0.0.0.0/0 is whitelisted in MongoDB Atlas: ' + err.message);
+  }
+}
+
+// Middleware to ensure DB connection is ready before processing API requests
+app.use(async (req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    try {
+      await connectDB();
+    } catch (err) {
+      return res.status(500).json({
+        error: 'Database connection failed. In MongoDB Atlas, go to Network Access and add 0.0.0.0/0 (Allow Access from Anywhere).'
+      });
+    }
+  }
+  next();
+});
+
+// Trigger connection on startup
+connectDB().catch(err => console.log('Initial DB connection attempt:', err.message));
 
 // ==========================================
 // 1. STUDENT REGISTRATION & INPUT VALIDATION

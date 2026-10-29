@@ -1,3 +1,4 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 const Question = require('./models/Question');
 
@@ -157,3 +158,4 @@ async function seedDB() {
 }
 
 seedDB();
+

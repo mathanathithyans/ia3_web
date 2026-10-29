@@ -18,7 +18,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Cached MongoDB Connection for Serverless (Vercel) & Local
+// Cached MongoDB Connection with Automatic Local Fallback
 let isConnected = false;
 async function connectDB() {
   if (isConnected || mongoose.connection.readyState === 1) {
@@ -27,13 +27,22 @@ async function connectDB() {
   }
   try {
     const db = await mongoose.connect(MONGO_URI, {
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 4000,
     });
     isConnected = db.connections[0].readyState === 1;
-    console.log('Connected to MongoDB Atlas');
+    console.log('Connected to MongoDB Atlas successfully');
   } catch (err) {
-    console.error('MongoDB Connection Error:', err.message);
-    throw new Error('Database connection failed. Please ensure 0.0.0.0/0 is whitelisted in MongoDB Atlas: ' + err.message);
+    console.warn('Atlas unreachable (IP not whitelisted). Attempting local MongoDB fallback...');
+    try {
+      const localDb = await mongoose.connect('mongodb://127.0.0.1:27017/adaptive_quiz_db', {
+        serverSelectionTimeoutMS: 3000
+      });
+      isConnected = localDb.connections[0].readyState === 1;
+      console.log('Connected to Local MongoDB fallback');
+    } catch (localErr) {
+      console.error('Both Atlas and Local MongoDB connection failed.');
+      throw new Error('Database connection failed. In MongoDB Atlas, add 0.0.0.0/0 to Network Access.');
+    }
   }
 }
 

@@ -103,6 +103,11 @@
         </div>
 
         <div class="card-body">
+          <!-- Tab-switch monitoring warning banner -->
+          <div id="tab-warning-alert" class="alert alert-warning py-2 small d-none" role="alert">
+            ⚠️ <strong>Tab Switch Detected!</strong> Switching tabs during the quiz is monitored to discourage cheating.
+          </div>
+
           <!-- Adaptive Notification Banner -->
           <div id="adaptive-alert" class="alert alert-info py-2 small d-none" role="alert"></div>
 
@@ -136,31 +141,37 @@
       </div>
 
       <!-- Step 3: Quiz Result & Analytics -->
-      <div id="result-card" class="card mx-auto d-none" style="max-width: 800px;">
+      <div id="result-card" class="card mx-auto d-none" style="max-width: 850px;">
         <div class="card-header bg-success text-white text-center py-3">
           <h4 class="mb-0">Quiz Completed!</h4>
         </div>
         <div class="card-body">
-          <div class="row text-center mb-4">
-            <div class="col-md-3 mb-2">
+          <div class="row text-center mb-4 g-2">
+            <div class="col">
               <div class="p-3 border rounded bg-light">
                 <small class="text-muted">Total Score</small>
                 <h3 class="text-primary mb-0" id="res-score">0</h3>
               </div>
             </div>
-            <div class="col-md-3 mb-2">
+            <div class="col">
               <div class="p-3 border rounded bg-light">
                 <small class="text-muted">Accuracy</small>
                 <h3 class="text-success mb-0" id="res-accuracy">0%</h3>
               </div>
             </div>
-            <div class="col-md-3 mb-2">
+            <div class="col">
               <div class="p-3 border rounded bg-light">
                 <small class="text-muted">Correct / Total</small>
                 <h3 class="text-dark mb-0" id="res-correct">0 / 5</h3>
               </div>
             </div>
-            <div class="col-md-3 mb-2">
+            <div class="col">
+              <div class="p-3 border rounded bg-light">
+                <small class="text-muted">Tab Switches</small>
+                <h3 class="text-warning mb-0" id="res-tabswitches">0</h3>
+              </div>
+            </div>
+            <div class="col">
               <div class="p-3 border rounded bg-light">
                 <small class="text-muted">Register No</small>
                 <h5 class="text-secondary mt-1 mb-0" id="res-regno">-</h5>

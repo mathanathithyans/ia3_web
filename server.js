@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const Student = require('./models/Student');
@@ -19,54 +20,81 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Cached MongoDB Connection for Serverless (Vercel) & Local
+// ========================================================
+// 3. DUAL-MODE DATABASE (MongoDB with JSON File Fallback)
+// ========================================================
 let isConnected = false;
+let dbMode = 'mongodb'; // 'mongodb' or 'json'
+const DATA_DIR = path.join(__dirname, 'data');
+
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function readJsonFile(fileName) {
+  try {
+    const filePath = path.join(DATA_DIR, fileName);
+    if (!fs.existsSync(filePath)) return [];
+    const content = fs.readFileSync(filePath, 'utf-8');
+    return JSON.parse(content || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeJsonFile(fileName, data) {
+  try {
+    const filePath = path.join(DATA_DIR, fileName);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Error writing JSON file:', e.message);
+  }
+}
+
 async function connectDB() {
   if (isConnected && mongoose.connection.readyState === 1) {
+    dbMode = 'mongodb';
     return;
   }
   try {
     const db = await mongoose.connect(MONGO_URI, {
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 5000,
       bufferCommands: false
     });
     isConnected = db.connections[0].readyState === 1;
-    console.log('Connected to MongoDB Atlas successfully');
+    dbMode = 'mongodb';
+    console.log('Connected to MongoDB Atlas successfully [Mode: mongodb]');
   } catch (err) {
-    console.warn('Atlas connection error:', err.message);
-    // If running locally on laptop, try local MongoDB fallback
+    console.warn('Atlas connection failed. Trying local MongoDB...');
     if (!process.env.VERCEL) {
       try {
         const localDb = await mongoose.connect('mongodb://127.0.0.1:27017/adaptive_quiz_db', {
-          serverSelectionTimeoutMS: 3000
+          serverSelectionTimeoutMS: 2000
         });
         isConnected = localDb.connections[0].readyState === 1;
-        console.log('Connected to Local MongoDB fallback');
+        dbMode = 'mongodb';
+        console.log('Connected to Local MongoDB fallback [Mode: mongodb]');
         return;
       } catch (localErr) {
-        // ignore
+        // Fallback to JSON Mode
       }
     }
-    throw new Error('Database connection failed: ' + err.message);
+    // Switch to JSON File Store Dual-Mode
+    dbMode = 'json';
+    console.log('⚡ DUAL-MODE ACTIVE: MongoDB unavailable, switched to JSON File Store [Mode: json]');
   }
 }
 
-// Middleware to ensure DB connection is ready before processing API requests
+// Middleware ensuring DB connection attempt before handling /api calls
 app.use(async (req, res, next) => {
   if (req.path.startsWith('/api')) {
-    try {
-      await connectDB();
-    } catch (err) {
-      return res.status(500).json({
-        error: 'Database connection failed. In MongoDB Atlas, go to Network Access and add 0.0.0.0/0 (Allow Access from Anywhere).'
-      });
-    }
+    await connectDB();
   }
   next();
 });
 
 // Trigger connection on startup
-connectDB().catch(err => console.log('Initial DB connection attempt:', err.message));
+connectDB().catch(err => console.log('Initial DB check:', err.message));
 
 // ==========================================
 // 1. STUDENT REGISTRATION & INPUT VALIDATION
@@ -91,22 +119,31 @@ app.post('/api/students/register', async (req, res) => {
     const cleanRegNo = regNo.trim().toUpperCase();
     const cleanName = name.trim();
 
-    // Check if student already registered, otherwise create new
-    let student = await Student.findOne({ email: cleanEmail });
-    if (!student) {
-      student = new Student({
-        name: cleanName,
-        regNo: cleanRegNo,
-        email: cleanEmail
-      });
-      await student.save();
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+      let student = await Student.findOne({ email: cleanEmail });
+      if (!student) {
+        student = new Student({ name: cleanName, regNo: cleanRegNo, email: cleanEmail });
+        await student.save();
+      } else {
+        student.name = cleanName;
+        student.regNo = cleanRegNo;
+        await student.save();
+      }
+      return res.json({ success: true, student, dbMode: 'mongodb' });
     } else {
-      student.name = cleanName;
-      student.regNo = cleanRegNo;
-      await student.save();
+      // JSON File Fallback
+      let students = readJsonFile('students.json');
+      let student = students.find(s => s.email === cleanEmail);
+      if (!student) {
+        student = { _id: 'std_' + Date.now(), name: cleanName, regNo: cleanRegNo, email: cleanEmail, department: 'B.Tech CSE' };
+        students.push(student);
+      } else {
+        student.name = cleanName;
+        student.regNo = cleanRegNo;
+      }
+      writeJsonFile('students.json', students);
+      return res.json({ success: true, student, dbMode: 'json' });
     }
-
-    res.json({ success: true, student });
   } catch (error) {
     res.status(500).json({ error: 'Error during registration: ' + error.message });
   }
@@ -117,34 +154,50 @@ app.post('/api/students/register', async (req, res) => {
 // ==========================================
 
 // Get next question adaptively based on difficulty
+// FEATURE: ITEM MASKING - Correct answers are stripped before sending to the client!
 app.get('/api/quiz/get-question', async (req, res) => {
   try {
     const difficulty = req.query.difficulty || 'Medium';
     const excludeIdsStr = req.query.exclude || '';
     const excludeIds = excludeIdsStr ? excludeIdsStr.split(',').filter(id => id) : [];
 
-    // Filter questions by difficulty and exclude previously attempted ones
-    let filter = {
-      difficulty: difficulty,
-      _id: { $nin: excludeIds }
-    };
+    let chosen = null;
 
-    let questions = await Question.find(filter);
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+      let filter = {
+        difficulty: difficulty,
+        _id: { $nin: excludeIds }
+      };
 
-    // Fallback if no questions left in this specific difficulty
-    if (questions.length === 0) {
-      questions = await Question.find({ _id: { $nin: excludeIds } });
+      let questions = await Question.find(filter);
+      if (questions.length === 0) {
+        questions = await Question.find({ _id: { $nin: excludeIds } });
+      }
+
+      if (questions.length === 0) {
+        return res.status(404).json({ error: 'No more questions available in the question bank.' });
+      }
+
+      const randomIndex = Math.floor(Math.random() * questions.length);
+      chosen = questions[randomIndex];
+    } else {
+      // JSON File Fallback
+      let questions = readJsonFile('questions.json');
+      let filtered = questions.filter(q => q.difficulty === difficulty && !excludeIds.includes(String(q._id)));
+      if (filtered.length === 0) {
+        filtered = questions.filter(q => !excludeIds.includes(String(q._id)));
+      }
+      if (filtered.length === 0) {
+        return res.status(404).json({ error: 'No more questions available in the question bank.' });
+      }
+      chosen = filtered[Math.floor(Math.random() * filtered.length)];
     }
 
-    if (questions.length === 0) {
-      return res.status(404).json({ error: 'No more questions available in the question bank.' });
-    }
-
-    // Pick a random question from available list
-    const randomIndex = Math.floor(Math.random() * questions.length);
-    const chosen = questions[randomIndex];
-
-    // Return question without revealing correctIndex to client
+    // =========================================================================
+    // ITEM MASKING LOGIC:
+    // Notice correctIndex is purposefully REMOVED from the returned payload
+    // so scoring cannot be changed or inspected from browser DevTools!
+    // =========================================================================
     res.json({
       _id: chosen._id,
       questionText: chosen.questionText,
@@ -166,7 +219,15 @@ app.post('/api/quiz/check-answer', async (req, res) => {
       return res.status(400).json({ error: 'questionId and selectedIndex are required.' });
     }
 
-    const question = await Question.findById(questionId);
+    let question = null;
+
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+      question = await Question.findById(questionId);
+    } else {
+      const questions = readJsonFile('questions.json');
+      question = questions.find(q => String(q._id) === String(questionId));
+    }
+
     if (!question) {
       return res.status(404).json({ error: 'Question not found.' });
     }
@@ -212,7 +273,7 @@ app.post('/api/quiz/check-answer', async (req, res) => {
   }
 });
 
-// Save complete quiz result to MongoDB
+// Save complete quiz result to MongoDB or JSON Store
 app.post('/api/quiz/save-result', async (req, res) => {
   try {
     const {
@@ -226,15 +287,15 @@ app.post('/api/quiz/save-result', async (req, res) => {
       easyCount,
       mediumCount,
       hardCount,
+      tabSwitchCount,
       details
     } = req.body;
 
-    // Basic validation
     if (!studentName || !regNo || !email) {
       return res.status(400).json({ error: 'Student information missing.' });
     }
 
-    const result = new QuizResult({
+    const resultData = {
       studentName: studentName.trim(),
       regNo: regNo.trim().toUpperCase(),
       email: email.trim().toLowerCase(),
@@ -245,25 +306,43 @@ app.post('/api/quiz/save-result', async (req, res) => {
       easyCount: easyCount || 0,
       mediumCount: mediumCount || 0,
       hardCount: hardCount || 0,
-      details: details || []
-    });
+      tabSwitchCount: tabSwitchCount || 0,
+      details: details || [],
+      date: new Date()
+    };
 
-    await result.save();
-    res.json({ success: true, result });
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+      const result = new QuizResult(resultData);
+      await result.save();
+      return res.json({ success: true, result, dbMode: 'mongodb' });
+    } else {
+      const results = readJsonFile('results.json');
+      resultData._id = 'res_' + Date.now();
+      results.push(resultData);
+      writeJsonFile('results.json', results);
+      return res.json({ success: true, result: resultData, dbMode: 'json' });
+    }
   } catch (error) {
     res.status(500).json({ error: 'Error saving quiz result: ' + error.message });
   }
 });
 
 // ==========================================
-// 3. PERFORMANCE ANALYTICS
+// 4. PERFORMANCE ANALYTICS
 // ==========================================
 
 // Get analytics for a specific student
 app.get('/api/analytics/student/:email', async (req, res) => {
   try {
     const email = req.params.email.trim().toLowerCase();
-    const history = await QuizResult.find({ email }).sort({ date: -1 });
+    let history = [];
+
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+      history = await QuizResult.find({ email }).sort({ date: -1 });
+    } else {
+      const allResults = readJsonFile('results.json');
+      history = allResults.filter(r => r.email === email).sort((a,b) => new Date(b.date) - new Date(a.date));
+    }
 
     if (!history || history.length === 0) {
       return res.json({ hasData: false, message: 'No quiz history found.' });
@@ -311,11 +390,18 @@ app.get('/api/analytics/student/:email', async (req, res) => {
 // Leaderboard: Top 5 scores
 app.get('/api/analytics/leaderboard', async (req, res) => {
   try {
-    const topScores = await QuizResult.find({})
-      .sort({ score: -1, accuracy: -1 })
-      .limit(5)
-      .select('studentName regNo score accuracy date');
-
+    let topScores = [];
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+      topScores = await QuizResult.find({})
+        .sort({ score: -1, accuracy: -1 })
+        .limit(5)
+        .select('studentName regNo score accuracy date tabSwitchCount');
+    } else {
+      const allResults = readJsonFile('results.json');
+      topScores = allResults
+        .sort((a, b) => b.score - a.score || b.accuracy - a.accuracy)
+        .slice(0, 5);
+    }
     res.json(topScores);
   } catch (error) {
     res.status(500).json({ error: 'Error loading leaderboard: ' + error.message });
@@ -323,25 +409,26 @@ app.get('/api/analytics/leaderboard', async (req, res) => {
 });
 
 // ==========================================
-// 4. QUESTION BANK MANAGEMENT (CRUD)
+// 5. QUESTION BANK MANAGEMENT (CRUD)
 // ==========================================
-
-// Get all questions
 app.get('/api/questions', async (req, res) => {
   try {
-    const questions = await Question.find({}).sort({ difficulty: 1 });
+    let questions = [];
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+      questions = await Question.find({}).sort({ difficulty: 1 });
+    } else {
+      questions = readJsonFile('questions.json');
+    }
     res.json(questions);
   } catch (error) {
     res.status(500).json({ error: 'Error loading questions: ' + error.message });
   }
 });
 
-// Add a new question with input validation
 app.post('/api/questions', async (req, res) => {
   try {
     const { questionText, difficulty, option0, option1, option2, option3, correctIndex, category } = req.body;
 
-    // Validation
     if (!questionText || questionText.trim().length < 5) {
       return res.status(400).json({ error: 'Question text must be at least 5 characters.' });
     }
@@ -356,25 +443,39 @@ app.post('/api/questions', async (req, res) => {
       return res.status(400).json({ error: 'Correct option index must be between 0 and 3.' });
     }
 
-    const newQuestion = new Question({
+    const questionObj = {
       questionText: questionText.trim(),
       difficulty,
       options: [option0.trim(), option1.trim(), option2.trim(), option3.trim()],
       correctIndex: cIndex,
       category: category ? category.trim() : 'Web Technology'
-    });
+    };
 
-    await newQuestion.save();
-    res.json({ success: true, question: newQuestion });
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+      const newQuestion = new Question(questionObj);
+      await newQuestion.save();
+      return res.json({ success: true, question: newQuestion });
+    } else {
+      const questions = readJsonFile('questions.json');
+      questionObj._id = 'q_' + Date.now();
+      questions.push(questionObj);
+      writeJsonFile('questions.json', questions);
+      return res.json({ success: true, question: questionObj });
+    }
   } catch (error) {
     res.status(500).json({ error: 'Error creating question: ' + error.message });
   }
 });
 
-// Delete a question
 app.delete('/api/questions/:id', async (req, res) => {
   try {
-    await Question.findByIdAndDelete(req.params.id);
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+      await Question.findByIdAndDelete(req.params.id);
+    } else {
+      let questions = readJsonFile('questions.json');
+      questions = questions.filter(q => String(q._id) !== String(req.params.id));
+      writeJsonFile('questions.json', questions);
+    }
     res.json({ success: true, message: 'Question deleted successfully.' });
   } catch (error) {
     res.status(500).json({ error: 'Error deleting question: ' + error.message });
@@ -389,4 +490,3 @@ if (require.main === module) {
 }
 
 module.exports = app;
-

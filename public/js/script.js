@@ -11,6 +11,22 @@ let attemptedQuestionIds = [];
 let quizDetails = []; // stores record of each answered question
 let myChartInstance = null;
 
+// FEATURE 2: Tab-switch monitoring variables
+let tabSwitchCount = 0;
+let isQuizActive = false;
+
+// Tab-switch event listener using HTML5 Page Visibility API
+document.addEventListener('visibilitychange', () => {
+  if (isQuizActive && document.visibilityState === 'hidden') {
+    tabSwitchCount++;
+    const warningAlert = document.getElementById('tab-warning-alert');
+    if (warningAlert) {
+      warningAlert.innerHTML = `⚠️ <strong>Tab Switch Detected (Warning #${tabSwitchCount})!</strong> Switching tabs during the quiz is monitored to discourage cheating.`;
+      warningAlert.classList.remove('d-none');
+    }
+  }
+});
+
 // ==========================================
 // NAVIGATION TAB SWITCHER
 // ==========================================
@@ -124,9 +140,13 @@ function startAdaptiveQuiz() {
   currentScore = 0;
   attemptedQuestionIds = [];
   quizDetails = [];
+  tabSwitchCount = 0;
+  isQuizActive = true;
 
   document.getElementById('current-score').textContent = '0 pts';
   document.getElementById('adaptive-alert').classList.add('d-none');
+  const tabAlert = document.getElementById('tab-warning-alert');
+  if (tabAlert) tabAlert.classList.add('d-none');
 
   loadNextQuestion();
 }
@@ -157,7 +177,7 @@ async function loadNextQuestion() {
     currentQuestion = data;
     attemptedQuestionIds.push(data._id);
 
-    // Display question & 4 options
+    // Display question & 4 options (ITEM MASKING: Notice correctIndex is NOT in the data received)
     document.getElementById('question-text').textContent = `${currentQuestionNumber}. ${data.questionText}`;
     for (let i = 0; i < 4; i++) {
       document.getElementById(`opt-${i}-text`).textContent = data.options[i];
@@ -238,6 +258,7 @@ async function submitAnswer() {
 
     if (currentQuestionNumber > TOTAL_QUESTIONS) {
       // Quiz complete
+      isQuizActive = false;
       setTimeout(() => {
         saveAndShowResults();
       }, 1200);
@@ -258,6 +279,7 @@ async function submitAnswer() {
 // 3. COMPLETE & SAVE QUIZ RESULTS
 // ==========================================
 async function saveAndShowResults() {
+  isQuizActive = false;
   const correctCount = quizDetails.filter(d => d.isCorrect).length;
   const accuracy = Math.round((correctCount / TOTAL_QUESTIONS) * 100);
 
@@ -282,11 +304,12 @@ async function saveAndShowResults() {
     easyCount: easyCount,
     mediumCount: mediumCount,
     hardCount: hardCount,
+    tabSwitchCount: tabSwitchCount,
     details: quizDetails
   };
 
   try {
-    // Save into MongoDB
+    // Save into MongoDB or JSON fallback
     await fetch('/api/quiz/save-result', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -301,6 +324,7 @@ async function saveAndShowResults() {
     document.getElementById('res-score').textContent = `${currentScore} pts`;
     document.getElementById('res-accuracy').textContent = `${accuracy}%`;
     document.getElementById('res-correct').textContent = `${correctCount} / ${TOTAL_QUESTIONS}`;
+    document.getElementById('res-tabswitches').textContent = tabSwitchCount;
     document.getElementById('res-regno').textContent = currentStudent.regNo;
 
     // Render questions review table
@@ -343,6 +367,8 @@ function logoutStudent() {
   attemptedQuestionIds = [];
   quizDetails = [];
   currentQuestionNumber = 1;
+  tabSwitchCount = 0;
+  isQuizActive = false;
 
   // Clear registration form inputs & error
   const form = document.getElementById('student-form');

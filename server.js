@@ -221,9 +221,13 @@ app.post('/api/quiz/check-answer', async (req, res) => {
 
     let question = null;
 
-    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1) {
+    // Check MongoDB first if valid ObjectId, else check JSON store
+    if (dbMode === 'mongodb' && mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(questionId)) {
       question = await Question.findById(questionId);
-    } else {
+    }
+    
+    // Fallback to JSON questions if not found in MongoDB or if ID is a JSON string (like "q7")
+    if (!question) {
       const questions = readJsonFile('questions.json');
       question = questions.find(q => String(q._id) === String(questionId));
     }

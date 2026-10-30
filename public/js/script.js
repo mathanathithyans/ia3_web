@@ -93,6 +93,14 @@ async function handleRegistration(e) {
 
     currentStudent = data.student;
 
+    // Show student badge and logout button in top navbar
+    const navUserInfo = document.getElementById('nav-user-info');
+    const navStudentName = document.getElementById('nav-student-name');
+    if (navUserInfo && navStudentName) {
+      navStudentName.textContent = `👤 ${data.student.name} (${data.student.regNo})`;
+      navUserInfo.classList.remove('d-none');
+    }
+
     // Transition from registration form to quiz view
     document.getElementById('registration-card').classList.add('d-none');
     document.getElementById('quiz-card').classList.remove('d-none');
@@ -320,10 +328,43 @@ async function saveAndShowResults() {
   }
 }
 
+// Retake quiz as same student
 function restartQuiz() {
   document.getElementById('result-card').classList.add('d-none');
   document.getElementById('quiz-card').classList.remove('d-none');
   startAdaptiveQuiz();
+}
+
+// Logout current student and return to registration form for another login
+function logoutStudent() {
+  currentStudent = null;
+  currentQuestion = null;
+  currentScore = 0;
+  attemptedQuestionIds = [];
+  quizDetails = [];
+  currentQuestionNumber = 1;
+
+  // Clear registration form inputs & error
+  const form = document.getElementById('student-form');
+  if (form) form.reset();
+  const regError = document.getElementById('reg-error');
+  if (regError) regError.classList.add('d-none');
+
+  // Hide quiz card and result card, show registration form
+  document.getElementById('quiz-card').classList.add('d-none');
+  document.getElementById('result-card').classList.add('d-none');
+  document.getElementById('registration-card').classList.remove('d-none');
+
+  // Hide navbar user badge
+  const navUserInfo = document.getElementById('nav-user-info');
+  if (navUserInfo) navUserInfo.classList.add('d-none');
+
+  // Clear analytics search field
+  const analyticsInput = document.getElementById('analytics-search-email');
+  if (analyticsInput) analyticsInput.value = '';
+
+  // Switch to quiz tab
+  showTab('quiz');
 }
 
 function viewMyAnalyticsFromQuiz() {
@@ -596,4 +637,3 @@ async function deleteQuestion(id) {
     alert('Error connecting to server.');
   }
 }
-

@@ -23,7 +23,7 @@
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navMenu">
-        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-lg-center">
           <li class="nav-item">
             <a class="nav-link active" id="tab-quiz-link" href="#" onclick="showTab('quiz')">Take Quiz</a>
           </li>
@@ -37,6 +37,11 @@
             <a class="nav-link" id="tab-questions-link" href="#" onclick="showTab('questions')">Question Bank</a>
           </li>
         </ul>
+        <!-- Active Logged In Student Indicator & Logout -->
+        <div id="nav-user-info" class="d-none d-flex align-items-center ms-lg-3 mt-2 mt-lg-0">
+          <span class="badge bg-light text-dark me-2 py-2 px-3 fw-semibold" id="nav-student-name">👤 Student</span>
+          <button class="btn btn-outline-danger btn-sm" onclick="logoutStudent()">Logout</button>
+        </div>
       </div>
     </div>
   </nav>
@@ -182,9 +187,11 @@
             </table>
           </div>
 
-          <div class="text-center mt-4">
-            <button class="btn btn-outline-primary me-2" onclick="restartQuiz()">Take Another Quiz</button>
-            <button class="btn btn-success" onclick="viewMyAnalyticsFromQuiz()">View My Analytics</button>
+          <!-- Navigation & Logout Actions -->
+          <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
+            <button class="btn btn-primary" onclick="restartQuiz()">🔄 Retake Quiz (Same Student)</button>
+            <button class="btn btn-success" onclick="viewMyAnalyticsFromQuiz()">📊 View My Analytics</button>
+            <button class="btn btn-outline-danger" onclick="logoutStudent()">🚪 Logout / New Student</button>
           </div>
         </div>
       </div>
@@ -413,4 +420,3 @@
   <script src="js/script.js"></script>
 </body>
 </html>
-

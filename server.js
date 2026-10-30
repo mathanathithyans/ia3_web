@@ -10,7 +10,8 @@ const QuizResult = require('./models/QuizResult');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/adaptive_quiz_db';
+const ATLAS_URI = 'mongodb+srv://mathanathithyan_db_user:v2ocjxj4k5TW9MvH@cluster0.icw2tf9.mongodb.net/adaptive_quiz_db?retryWrites=true&w=majority&appName=Cluster0';
+const MONGO_URI = process.env.MONGO_URI || ATLAS_URI;
 
 // Middleware
 app.use(cors());
@@ -18,31 +19,35 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Cached MongoDB Connection with Automatic Local Fallback
+// Cached MongoDB Connection for Serverless (Vercel) & Local
 let isConnected = false;
 async function connectDB() {
-  if (isConnected || mongoose.connection.readyState === 1) {
-    isConnected = true;
+  if (isConnected && mongoose.connection.readyState === 1) {
     return;
   }
   try {
     const db = await mongoose.connect(MONGO_URI, {
-      serverSelectionTimeoutMS: 4000,
+      serverSelectionTimeoutMS: 8000,
+      bufferCommands: false
     });
     isConnected = db.connections[0].readyState === 1;
     console.log('Connected to MongoDB Atlas successfully');
   } catch (err) {
-    console.warn('Atlas unreachable (IP not whitelisted). Attempting local MongoDB fallback...');
-    try {
-      const localDb = await mongoose.connect('mongodb://127.0.0.1:27017/adaptive_quiz_db', {
-        serverSelectionTimeoutMS: 3000
-      });
-      isConnected = localDb.connections[0].readyState === 1;
-      console.log('Connected to Local MongoDB fallback');
-    } catch (localErr) {
-      console.error('Both Atlas and Local MongoDB connection failed.');
-      throw new Error('Database connection failed. In MongoDB Atlas, add 0.0.0.0/0 to Network Access.');
+    console.warn('Atlas connection error:', err.message);
+    // If running locally on laptop, try local MongoDB fallback
+    if (!process.env.VERCEL) {
+      try {
+        const localDb = await mongoose.connect('mongodb://127.0.0.1:27017/adaptive_quiz_db', {
+          serverSelectionTimeoutMS: 3000
+        });
+        isConnected = localDb.connections[0].readyState === 1;
+        console.log('Connected to Local MongoDB fallback');
+        return;
+      } catch (localErr) {
+        // ignore
+      }
     }
+    throw new Error('Database connection failed: ' + err.message);
   }
 }
 
